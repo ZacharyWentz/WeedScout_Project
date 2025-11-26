@@ -254,6 +254,15 @@ def detection_processing_thread(user_data):
             and (d.get_confidence() * 100.0) >= user_data.confidence_threshold
         ]
 
+        # Top-left overlay info
+        top_left_y = 25
+        cv2.putText(frame_overlay,
+                    f"Time: {datetime.now(pytz.timezone('US/Central')).strftime('%H:%M:%S')} | Objects detected: {len(frame_targets)}",
+                    (10, top_left_y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        cv2.putText(frame_overlay,
+                    f"Drone: Lat {lat if lat else 'N/A'}, Lon {lon if lon else 'N/A'}, Alt {alt if alt else 'N/A'} m",
+                    (10, top_left_y + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
         for det in frame_targets:
             bbox = det.get_bbox()
             x_min = int(bbox.xmin() * frame.shape[1])
@@ -267,7 +276,7 @@ def detection_processing_thread(user_data):
             obj_lat, obj_lon = pixel_to_ground(lat, lon, alt, roll, pitch, yaw, x_c, y_c, frame.shape[1], frame.shape[0])
             lat_str = f"{obj_lat:.6f}" if obj_lat is not None else "N/A"
             lon_str = f"{obj_lon:.6f}" if obj_lon is not None else "N/A"
-            conf_str = f"{det.get_confidence()*100:.1f}%"  # confidence as percentage
+            conf_str = f"{det.get_confidence()*100:.1f}%"
 
             matched_id = None
             with user_data.lock:
@@ -294,13 +303,24 @@ def detection_processing_thread(user_data):
                     }
 
                 tracked = user_data.tracked_objects[matched_id]
+
                 if not tracked['snapshot_taken']:
                     snapshot_frame = frame_overlay.copy()
-                    # ID, Lat, Lon on top, confidence below
+
+                    # Bounding box info
                     cv2.putText(snapshot_frame, f"ID {matched_id} | Lat {lat_str} Lon {lon_str}",
                                 (x_min, max(20, y_min - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
                     cv2.putText(snapshot_frame, f"Confidence: {conf_str}",
                                 (x_min, y_max + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+                    # Top-left overlay
+                    cv2.putText(snapshot_frame,
+                                f"Time: {datetime.now(pytz.timezone('US/Central')).strftime('%H:%M:%S')} | Objects detected: {len(frame_targets)}",
+                                (10, top_left_y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                    cv2.putText(snapshot_frame,
+                                f"Drone: Lat {lat if lat else 'N/A'}, Lon {lon if lon else 'N/A'}, Alt {alt if alt else 'N/A'} m",
+                                (10, top_left_y + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
                     try:
                         user_data.snapshot_queue.put_nowait({
                             "frame": snapshot_frame,
@@ -316,17 +336,11 @@ def detection_processing_thread(user_data):
                     except queue.Full:
                         pass
 
-            # Overlay on live frame (same: ID+Lat/Lon top, confidence below)
+            # Overlay on live frame
             cv2.putText(frame_overlay, f"ID {matched_id} | Lat {lat_str} Lon {lon_str}",
                         (x_min, max(20, y_min - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             cv2.putText(frame_overlay, f"Confidence: {conf_str}",
                         (x_min, y_max + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-        gps_text = f"Drone: Lat {lat if lat else 'N/A'}, Lon {lon if lon else 'N/A'}, Alt {alt if alt else 'N/A'} m"
-        cv2.putText(frame_overlay,
-                    f"Time: {datetime.now(pytz.timezone('US/Central')).strftime('%H:%M:%S')} | Objects detected: {len(frame_targets)}",
-                    (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        cv2.putText(frame_overlay, gps_text, (10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
         preview_frame = frame_overlay.copy()
         try:
@@ -335,7 +349,6 @@ def detection_processing_thread(user_data):
             pass
 
         user_data.detection_queue.task_done()
-
 
 # Video writer thread
 def video_writer_thread(user_data):
@@ -386,20 +399,20 @@ def snapshot_writer_thread(user_data):
         user_data.snapshot_queue.task_done()
 
 # Preview thread
-def preview_thread():
-    global preview_frame, preview_running
-    while preview_running:
-        if preview_frame is not None:
-            try:
-                cv2.imshow("Preview", cv2.cvtColor(preview_frame, cv2.COLOR_RGB2BGR))
-            except Exception:
-                pass
-        if cv2.waitKey(1) & 0xFF == 27:
-            preview_running = False
-            try: Gst.main_quit()
-            except: pass
-            break
-        time.sleep(0.01)
+#def preview_thread():
+    #global preview_frame, preview_running
+    #while preview_running:
+        #if preview_frame is not None:
+            #try:
+                #cv2.imshow("Preview", cv2.cvtColor(preview_frame, cv2.COLOR_RGB2BGR))
+            #except Exception:
+                #pass
+        #if cv2.waitKey(1) & 0xFF == 27:
+            #preview_running = False
+            #try: Gst.main_quit()
+            #except: pass
+            #break
+        #time.sleep(0.01)
 
 # Cleanup
 def cleanup(user_data):

@@ -89,7 +89,7 @@ class LatestGPS:
 # MAVLink Listener
 def gps_listener(gps_obj, connection_string="/dev/ttyAMA0"):
     try:
-        master = mavutil.mavlink_connection(connection_string, baud=57600)
+        master = mavutil.mavlink_connection(connection_string)
         logging.info(f"Connecting to MAVLink at {connection_string}...")
         master.wait_heartbeat(timeout=2)
         logging.info("GPS listener connected")

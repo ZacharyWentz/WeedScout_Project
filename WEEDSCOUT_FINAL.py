@@ -160,7 +160,7 @@ class UserAppCallbackWithGPS(app_callback_class):
         self.tracked_objects = {}
         self.next_object_id = 1
         self.redetect_distance_m = 0.5
-        self.confidence_threshold = 80.0 
+        self.confidence_threshold = 30.0 
         self.lock = threading.Lock()
         self.video_writer = None
 
@@ -283,7 +283,12 @@ def detection_processing_thread(user_data):
                 for oid, tracked in user_data.tracked_objects.items():
                     if tracked.get('lat') is None or obj_lat is None:
                         continue
-                    if math.hypot(obj_lat - tracked['lat'], obj_lon - tracked['lon']) < user_data.redetect_distance_m:
+
+                    dlat_m = (obj_lat - tracked['lat']) * 111320.0
+                    dlon_m = (obj_lon - tracked['lon']) * (111320.0 * math.cos(math.radians(obj_lat)))
+                    distance_m = math.hypot(dlat_m, dlon_m)
+                   
+                    if distance_m < user_data.redetect_distance_m:
                         matched_id = oid
                         tracked['bbox'] = (x_min, y_min, x_max, y_max)
                         tracked['last_seen'] = time.time()
